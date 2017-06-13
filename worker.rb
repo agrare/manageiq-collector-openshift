@@ -12,14 +12,14 @@ def parse_args
   args = Trollop.options do
     opt :token,    "token",    :type => :string
     opt :hostname, "hostname", :type => :string
-    opt :port,     "port",     :type => :int
+    opt :port,     "port",     :type => :int, :default => 8443
     opt :ems_id,   "ems-id",   :type => :int
   end
 
-  args[:hostname] ||= ENV["COLLECTOR_HOSTNAME"]
-  args[:port]     ||= ENV["COLLECTOR_PORT"]
-  args[:token]    ||= ENV["COLLECTOR_TOKEN"]
-  args[:ems_id]   ||= ENV["COLLECTOR_EMS_ID"]
+  args[:hostname] ||= ENV["EMS_HOSTNAME"]
+  args[:port]     ||= ENV["EMS_PORT"]
+  args[:token]    ||= ENV["EMS_TOKEN"]
+  args[:ems_id]   ||= ENV["EMS_ID"]
 
   raise Trollop::CommandlineError, "--token required"    if args[:token].nil?
   raise Trollop::CommandlineError, "--hostname required" if args[:hostname].nil?

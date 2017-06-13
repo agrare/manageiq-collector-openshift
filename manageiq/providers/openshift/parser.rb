@@ -1,4 +1,3 @@
-require 'byebug'
 require 'manageiq/providers/inventory'
 require 'manageiq/providers/openshift/inventory_collections'
 
