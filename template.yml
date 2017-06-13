@@ -1,0 +1,74 @@
+apiVersion: v1
+kind: Template
+labels:
+  template: manageiq-collector-openshift
+metadata:
+  name: manageiq-collector-openshift
+  annotations:
+    description: "ManageIQ Openshift Inventory Collector service"
+    tags: "instant-app,manageiq,miq,collector-service"
+    iconClass: "icon-rails"
+objects:
+- apiVersion: v1
+  kind: ImageStream
+  metadata:
+    name: manageiq-collector-openshift
+    annotations:
+      description: "Keeps track of the ManageIQ image changes"
+  spec: {}
+- apiVersion: v1
+  kind: DeploymentConfig
+  metadata:
+    creationTimestamp: null
+    name: manageiq-collector-openshift-${NAME}
+  spec:
+    replicas: 1
+    selector:
+      name: manageiq-collector-openshift-${NAME}
+    strategy:
+      type: Recreate
+    template:
+      metadata:
+        creationTimestamp: null
+        labels:
+          name: manageiq-collector-openshift-${NAME}
+      spec:
+        containers:
+        - capabilities: {}
+          env:
+          - name: EMS_ID
+            value: "${EMS_ID}"
+          - name: EMS_HOSTNAME
+            value: "${EMS_HOSTNAME}"
+          - name: EMS_TOKEN
+            value: "${EMS_TOKEN}"
+          image: ' '
+          imagePullPolicy: IfNotPresent
+          name: manageiq-collector-openshift
+        restartPolicy: Always
+    triggers:
+    - imageChangeParams:
+        automatic: true
+        containerNames:
+        - manageiq-collector-openshift
+        from:
+          kind: ImageStreamTag
+          name: manageiq-collector-openshift:latest
+        lastTriggeredImage: ""
+      type: ImageChange
+    - type: ConfigChange
+  status: {}
+parameters:
+  -
+    name: "NAME"
+    displayName: Name
+    required: true
+    description: "The name assigned to all of the frontend objects defined in this template."
+    value: ems
+  -
+    name: EMS_ID
+    description: Id of EMS
+    displayName: Id of EMS
+    from: '[0-9]{9}'
+    generate: expression
+    required: true
