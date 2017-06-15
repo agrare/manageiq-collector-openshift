@@ -21,7 +21,12 @@ module ManageIQ
           event_stream.each_message do |event|
             puts "#{self.class.name}##{__method__}: Received event: #{event.value}"
 
-            refresh
+            begin
+              refresh
+            rescue => err
+              puts err
+              puts err.backtrace.join("\n")
+            end
           end
         end
 
