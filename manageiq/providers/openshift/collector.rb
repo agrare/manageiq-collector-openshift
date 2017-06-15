@@ -12,29 +12,41 @@ module ManageIQ
           @hostname = hostname
           @port     = port
           @token    = token
-
-          logger = Logger.new(STDOUT, level: :info)
-          @kafka = Kafka.new(seed_brokers: ["apache-kafka:9092"], client_id: "miq-collectors", logger: logger)
+          @kafka    = Kafka.new(seed_brokers: ["localhost:9092"], client_id: "miq-collector")
         end
 
         def run
-          puts "#{self.class.name}##{__method__}: Connecting to #{@hostname}"
+          event_stream = kafka_event_consumer
 
-          kube = connect(@hostname, @port, @token)
-          kafka_event_consumer.each_message do |event|
-            refresh(kube, kafka_inventory_producer)
+          event_stream.each_message do |event|
+            puts "#{self.class.name}##{__method__}: Received event: #{event.value}"
+
+            refresh
           end
         end
 
         private
         
-        def connect(hostname, port, token)
+        def refresh
+          puts "#{self.class.name}##{__method__}: Refreshing targets..."
+
+          conn = connect
+          inventory_stream = kafka_inventory_producer
+
+          inv = parse_inventory(conn)
+
+          publish_inventory(inventory_stream, inv)
+
+          puts "#{self.class.name}##{__method__}: Refreshing targets...Complete"
+        end
+
+        def connect
           Kubeclient::Client.new(
-            URI::HTTPS.build(:host => hostname, :port => port, :path => ''),
+            URI::HTTPS.build(:host => @hostname, :port => @port, :path => ''),
             'v1',
             :ssl_options => Kubeclient::Client::DEFAULT_SSL_OPTIONS.merge(verify_ssl:  OpenSSL::SSL::VERIFY_NONE),
             :auth_options => {
-              :bearer_token => token
+              :bearer_token => @token
             }
           )
         end
@@ -49,15 +61,21 @@ module ManageIQ
           @kafka.producer
         end
 
-        def refresh(kube, inventory)
-          puts "#{self.class.name}##{__method__}: Refreshing targets"
+        def parse_inventory(kube)
+          puts "#{self.class.name}##{__method__}: Parsing inventory..."
 
           parser = ManageIQ::Providers::Openshift::Parser.new(@ems_id)
           parser.parse(kube)
-          puts parser.inventory
+          inventory = parser.inventory
 
-          puts "#{self.class.name}##{__method__}: Refreshing targets...Complete"
-          STDOUT.flush
+          puts "#{self.class.name}##{__method__}: Parsing inventory...Complete"
+
+          inventory.collect { |ic| ic.to_raw_data }.to_yaml
+        end
+
+        def publish_inventory(stream, inventory)
+          stream.produce(inventory, topic: "inventory")
+          stream.deliver_messages
         end
       end
     end

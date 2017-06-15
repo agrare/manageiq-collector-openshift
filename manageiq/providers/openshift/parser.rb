@@ -17,14 +17,7 @@ module ManageIQ
         end
 
         def inventory
-          collections_data = @inv_collections.map do |key, collection|
-            {
-              :name => key,
-              :data => collection.to_raw_data
-            }
-          end.compact
-
-          yaml = YAML.dump(collections_data)
+          @inv_collections.values
         end
 
         private
@@ -34,7 +27,6 @@ module ManageIQ
             @inv_collections[:container_groups].build(
               :ems_ref => pod.metadata.uid,
               :name    => pod.metadata.name,
-              :type    => 'ManageIQ::Providers::Openshift::ContainerManager::ContainerGroup',
             )
           end
         end

@@ -3,6 +3,8 @@ $LOAD_PATH.unshift(".")
 require 'trollop'
 require 'manageiq/providers/openshift/collector'
 
+$stdout.sync = true
+
 def main args
   collector = ManageIQ::Providers::Openshift::Collector.new(args[:ems_id], args[:hostname], args[:port], args[:token])
   collector.run
