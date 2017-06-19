@@ -2,28 +2,22 @@ module ManageIQ
   module Providers
     module Openshift
       module InventoryCollections
-        def initialize_inventory_collections(ems_id)
-          @inv_collections = {}
+        def initialize_inventory_collections
+          collections = {}
 
-          @inv_collections[:container_groups] = ManageIQ::Providers::Inventory::InventoryCollection.new(
-            :model_class    => "ContainerGroup",
-            :builder_params => {:ems_id => ems_id},
-            :association    => :container_groups,
+          collections[:container_groups] = ManageIQ::Providers::Inventory::InventoryCollection.new(
+            :model_class => "ContainerGroup",
           )
 
-          @inv_collections[:container_nodes] = ManageIQ::Providers::Inventory::InventoryCollection.new(
-            :model_class    => "ContainerNode",
-            :builder_params => {:ems_id => ems_id},
-            :association    => :container_nodes
+          collections[:container_nodes] = ManageIQ::Providers::Inventory::InventoryCollection.new(
+            :model_class => "ContainerNode",
           )
 
-          @inv_collections[:container_projects] = ManageIQ::Providers::Inventory::InventoryCollection.new(
-            :model_class    => "ContainerProject",
-            :builder_params => {:ems_id => ems_id},
-            :association    => :container_projects
+          collections[:container_projects] = ManageIQ::Providers::Inventory::InventoryCollection.new(
+            :model_class => "ContainerProject",
           )
 
-          @inv_collections
+          collections
         end
       end
     end

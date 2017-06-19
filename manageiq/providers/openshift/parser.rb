@@ -9,23 +9,41 @@ module ManageIQ
 
         def initialize(ems_id)
           @ems_id          = ems_id
-          @inv_collections = initialize_inventory_collections(ems_id)
+          @collections = initialize_inventory_collections
         end
 
         def parse(kube)
-          parse_nodes(kube)
-          parse_pods(kube)
-          parse_namespaces(kube)
+          get_nodes(kube)
+          get_pods(kube)
+          get_namespaces(kube)
         end
 
         def inventory
-          @inv_collections.values
+          @collections
         end
 
+        def inventory_yaml
+          collections = inventory.map do |key, collection|
+            next if collection.data.blank? && collection.manager_uuids.blank? && collection.all_manager_uuids.nil?
+
+            {
+              :name              => key,
+              :manager_uuids     => collection.manager_uuids,
+              :all_manager_uuids => collection.all_manager_uuids,
+              :data              => collection.to_raw_data
+            }
+          end.compact
+
+          inv = YAML.dump({
+            :ems_id      => @ems_id,
+            :class       => "ManageIQ::Providers::Kubernetes::Inventory::Persister::ContainerManager",
+            :collections => collections
+          })
+        end
         private
 
-        def parse_nodes(kube)
-          collection = @inv_collections[:container_nodes]
+        def get_nodes(kube)
+          collection = @collections[:container_nodes]
 
           puts "#{self.class.name}##{__method__}: Collecting nodes..."
 
@@ -39,8 +57,8 @@ module ManageIQ
           puts "#{self.class.name}##{__method__}: Collecting nodes...Complete - Count [#{collection.to_a.count}]"
         end
 
-        def parse_pods(kube)
-          collection = @inv_collections[:container_groups]
+        def get_pods(kube)
+          collection = @collections[:container_groups]
 
           puts "#{self.class.name}##{__method__}: Collecting pods..."
 
@@ -54,8 +72,8 @@ module ManageIQ
           puts "#{self.class.name}##{__method__}: Collecting pods...Complete - Count [#{collection.to_a.count}]"
         end
 
-        def parse_namespaces(kube)
-          collection = @inv_collections[:container_projects]
+        def get_namespaces(kube)
+          collection = @collections[:container_projects]
 
           puts "#{self.class.name}##{__method__}: Collecting projects..."
 

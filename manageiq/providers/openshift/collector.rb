@@ -18,6 +18,8 @@ module ManageIQ
         def run
           event_stream = kafka_event_consumer
 
+          refresh
+
           event_stream.each_message do |event|
             puts "#{self.class.name}##{__method__}: Received event: #{event.value}"
 
@@ -71,11 +73,11 @@ module ManageIQ
 
           parser = ManageIQ::Providers::Openshift::Parser.new(@ems_id)
           parser.parse(kube)
-          inventory = parser.inventory
+          inv = parser.inventory_yaml
 
           puts "#{self.class.name}##{__method__}: Parsing inventory...Complete"
 
-          inventory.collect { |ic| ic.to_raw_data }.to_yaml
+          inv
         end
 
         def publish_inventory(stream, inventory)
