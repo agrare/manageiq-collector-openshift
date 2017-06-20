@@ -65,7 +65,7 @@ module ManageIQ
         end
 
         def kafka_inventory_producer
-          @kafka.producer
+          @kafka.producer(compression_codec: :gzip)
         end
 
         def parse_inventory(kube)
