@@ -8,14 +8,22 @@ module ManageIQ
         include InventoryCollections
 
         def initialize(ems_id)
-          @ems_id          = ems_id
+          @ems_id      = ems_id
           @collections = initialize_inventory_collections
         end
 
         def parse(kube)
           get_nodes(kube)
-          get_pods(kube)
           get_namespaces(kube)
+          get_resource_quotas(kube)
+          get_limit_ranges(kube)
+          get_replication_controllers(kube)
+          get_persistent_volume_claims(kube)
+          get_persistent_volumes(kube)
+          get_pods(kube)
+          get_endpoints(kube)
+          get_services(kube)
+          get_component_statuses(kube)
         end
 
         def inventory
@@ -57,6 +65,36 @@ module ManageIQ
           puts "#{self.class.name}##{__method__}: Collecting nodes...Complete - Count [#{collection.to_a.count}]"
         end
 
+        def get_namespaces(kube)
+          collection = @collections[:container_projects]
+
+          puts "#{self.class.name}##{__method__}: Collecting projects..."
+
+          kube.get_namespaces.to_a.each do |ns|
+            collection.build(
+              :ems_ref => ns.metadata.uid,
+              :name    => ns.metadata.name,
+            )
+          end
+
+          puts "#{self.class.name}##{__method__}: Collecting projects...Complete - Count [#{collection.to_a.count}]"
+        end
+
+        def get_resource_quotas(kube)
+        end
+
+        def get_limit_ranges(kube)
+        end
+
+        def get_replication_controllers(kube)
+        end
+
+        def get_persistent_volume_claims(kube)
+        end
+
+        def get_persistent_volumes(kube)
+        end
+
         def get_pods(kube)
           collection = @collections[:container_groups]
 
@@ -72,19 +110,13 @@ module ManageIQ
           puts "#{self.class.name}##{__method__}: Collecting pods...Complete - Count [#{collection.to_a.count}]"
         end
 
-        def get_namespaces(kube)
-          collection = @collections[:container_projects]
+        def get_endpoints(kube)
+        end
 
-          puts "#{self.class.name}##{__method__}: Collecting projects..."
+        def get_services(kube)
+        end
 
-          kube.get_namespaces.to_a.each do |ns|
-            collection.build(
-              :ems_ref => ns.metadata.uid,
-              :name    => ns.metadata.name,
-            )
-          end
-
-          puts "#{self.class.name}##{__method__}: Collecting projects...Complete - Count [#{collection.to_a.count}]"
+        def get_component_statuses(kube)
         end
       end
     end
