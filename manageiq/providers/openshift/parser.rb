@@ -1,3 +1,5 @@
+require 'active_support/core_ext/object/try'
+
 require 'manageiq/providers/inventory'
 require 'manageiq/providers/openshift/inventory_collections'
 
@@ -57,25 +59,31 @@ module ManageIQ
           puts "#{self.class.name}##{__method__}: Collecting nodes..."
 
           kube.get_nodes.to_a.each do |node|
-            node_hash = parse_base_item(node).merge!(
-              :type           => 'ManageIQ::Providers::Kubernetes::ContainerManager::ContainerNode',
-              :identity_infra => node.spec.providerID,
-            )
-
-            node.status&.nodeInfo&.tap do |node_info|
-              node_hash.merge!(
-                :identity_machine           => node_info.machineID,
-                :identity_system            => node_info.systemUUID,
-                :container_runtime_version  => node_info.containerRuntimeVersion,
-                :kubernetes_proxy_version   => node_info.kubeProxyVersion,
-                :kubernetes_kubelet_version => node_info.kubeletVersion
-              )
-            end
-
-            collection.build(node_hash)
+            collection.build(parse_node(node))
           end
 
           puts "#{self.class.name}##{__method__}: Collecting nodes...Complete - Count [#{collection.to_a.count}]"
+        end
+
+        def parse_node(node)
+          node_hash = parse_base_item(node).merge!(
+            :type           => 'ManageIQ::Providers::Kubernetes::ContainerManager::ContainerNode',
+            :identity_infra => node.spec.providerID,
+            # TODO: labels, tags, lives_on_id, lives_on_type
+          )
+
+          if !node.status.nil? && !node.status.nodeInfo.nil?
+            node_info = node.status.nodeInfo
+            node_hash.merge!(
+              :identity_machine           => node_info.machineID,
+              :identity_system            => node_info.systemUUID,
+              :container_runtime_version  => node_info.containerRuntimeVersion,
+              :kubernetes_proxy_version   => node_info.kubeProxyVersion,
+              :kubernetes_kubelet_version => node_info.kubeletVersion
+            )
+          end
+
+          node_hash
         end
 
         def get_namespaces(kube)
@@ -84,12 +92,16 @@ module ManageIQ
           puts "#{self.class.name}##{__method__}: Collecting projects..."
 
           kube.get_namespaces.to_a.each do |ns|
-            ns_hash = parse_base_item(ns)
-
-            collection.build(ns_hash)
+            collection.build(parse_namespace(ns))
           end
 
           puts "#{self.class.name}##{__method__}: Collecting projects...Complete - Count [#{collection.to_a.count}]"
+        end
+
+        def parse_namespace(namespace)
+          namespace_hash = parse_base_item(namespace)
+          # TODO: labels, tags
+          namespace_hash
         end
 
         def get_resource_quotas(kube)
@@ -98,12 +110,17 @@ module ManageIQ
           puts "#{self.class.name}##{__method__}: Collecting quotas..."
 
           kube.get_resource_quotas.to_a.each do |quota|
-            quota_hash = parse_base_item(quota)
-
-            collection.build(quota_hash)
+            collection.build(parse_resource_quota(quota))
           end
 
           puts "#{self.class.name}##{__method__}: Collecting quotas...Complete - Count [#{collection.to_a.count}]"
+        end
+
+        def parse_resource_quota(quota)
+          parse_base_item(quota).merge!(
+            :container_project => lazy_find_project(quota.metadata["table"][:namespace])
+            # TODO: container_quota_items
+          )
         end
 
         def get_limit_ranges(kube)
@@ -112,12 +129,17 @@ module ManageIQ
           puts "#{self.class.name}##{__method__}: Collecting limits..."
 
           kube.get_limit_ranges.to_a.each do |limit_range|
-            range_hash = parse_base_item(limit_range)
-
-            collection.build(range_hash)
+            collection.build(parse_limit_range(limit_range))
           end
 
           puts "#{self.class.name}##{__method__}: Collecting limits...Complete - Count [#{collection.to_a.count}]"
+        end
+
+        def parse_limit_range(range)
+          parse_base_item(range).merge!(
+            :container_project => lazy_find_project(range.metadata["table"][:namespace])
+            # TODO: container_limit_items
+          )
         end
 
         def get_replication_controllers(kube)
@@ -126,12 +148,19 @@ module ManageIQ
           puts "#{self.class.name}##{__method__}: Collecting replicators..."
 
           kube.get_replication_controllers.to_a.each do |rc|
-            rc_hash = parse_base_item(rc)
-
-            collection.build(rc_hash)
+            collection.build(parse_replication_controller(rc))
           end
 
           puts "#{self.class.name}##{__method__}: Collecting replicators...Complete - Count [#{collection.to_a.count}]"
+        end
+
+        def parse_replication_controller(rc)
+          parse_base_item(rc).merge!(
+            :container_project => lazy_find_project(rc.metadata["table"][:namespace]),
+            :replicas          => rc.spec.replicas,
+            :current_replicas  => rc.status.replicas,
+            # TODO: labels, tags, selector_parts
+          )
         end
 
         def get_persistent_volume_claims(kube)
@@ -140,12 +169,19 @@ module ManageIQ
           puts "#{self.class.name}##{__method__}: Collecting persistent volume claims..."
 
           kube.get_persistent_volume_claims.to_a.each do |pv_claim|
-            pv_claim_hash = parse_base_item(pv_claim)
-
-            collection.build(pv_claim_hash)
+            collection.build(parse_persistent_volume_claim(pv_claim))
           end
 
           puts "#{self.class.name}##{__method__}: Collecting persistent volume claims...Complete - Count [#{collection.to_a.count}]"
+        end
+
+        def parse_persistent_volume_claim(claim)
+          parse_base_item(claim).merge!(
+            :desired_access_modes => claim.spec.accessModes,
+            :phase                => claim.status.phase,
+            :actual_access_modes  => claim.status.accessModes,
+            # TODO: capacity
+          )
         end
 
         def get_persistent_volumes(kube)
@@ -154,12 +190,22 @@ module ManageIQ
           puts "#{self.class.name}##{__method__}: Collecting persistent volumes..."
 
           kube.get_persistent_volumes.to_a.each do |pv|
-            pv_hash = parse_base_item(pv)
-
-            collection.build(pv_hash)
+            collection.build(parse_persistent_volume(pv))
           end
 
           puts "#{self.class.name}##{__method__}: Collecting persistent volumes...Complete - Count [#{collection.to_a.count}]"
+        end
+
+        def parse_persistent_volume(pv)
+          parse_base_item(pv).merge!(
+            :access_modes => pv.spec.accessModes.join(','),
+            :reclaim_policy => pv.spec.persistentVolumeReclaimPolicy,
+            :status_phase   => pv.status.phase,
+            :status_message => pv.status.message,
+            :status_reason  => pv.status.reason,
+            :persistent_volume_claim => lazy_find_pv_claim(pv.spec.claimRef.namespace,
+                                                           pv.spec.claimRef.name)
+          )
         end
 
         def get_pods(kube)
@@ -168,31 +214,40 @@ module ManageIQ
           puts "#{self.class.name}##{__method__}: Collecting groups..."
 
           kube.get_pods.to_a.each do |pod|
-            pod_hash = parse_base_item(pod).merge!(
-              :container_node    => lazy_find_node(pod.spec.nodeName),
-              :container_project => lazy_find_project(pod.metadata["table"][:namespace]),
-            )
+            collection.build(parse_pod(pod))
 
-            collection.build(pod_hash)
-
-            unless pod.status.nil? || pod.status.containerStatuses.nil?
-              pod.status.containerStatuses.each do |cn|
-                parse_container(cn, pod.metadata.uid)
-              end
+            pod.status.try(:containerStatuses).to_a.each do |cn|
+              container_hash = parse_container(cn, pod.metadata.uid)
+              @collections[:containers].build(container_hash)
             end
           end
 
           puts "#{self.class.name}##{__method__}: Collecting groups...Complete - Count [#{collection.to_a.count}]"
         end
 
+        def parse_pod(pod)
+          build_pod_name = pod.metadata.try(:annotations).try("openshift.io/build.name".to_sym)
+
+          parse_base_item(pod).merge!(
+            :container_project   => lazy_find_project(pod.metadata["table"][:namespace]),
+            :container_node      => lazy_find_node(pod.spec.nodeName),
+            :restart_policy      => pod.spec.restartPolicy,
+            :dns_policy          => pod.spec.dnsPolicy,
+            :ipaddress           => pod.status.podIP,
+            :phase               => pod.status.phase,
+            :message             => pod.status.message,
+            :reason              => pod.status.reason,
+            :container_build_pod => lazy_find_build_pod(build_pod_name)
+          )
+        end
+
         def parse_container(container, pod_id)
-          collection = @collections[:containers]
-
-          container_hash = {
+          {
             :ems_ref => "#{pod_id}_#{container.name}_#{container.image}",
+            :name    => container.name,
+            :restart_count => container.restartCount,
+            :backing_ref   => container.containerID,
           }
-
-          collection.build(container_hash)
         end
 
         def get_endpoints(kube)
@@ -206,12 +261,26 @@ module ManageIQ
           puts "#{self.class.name}##{__method__}: Collecting services..."
 
           kube.get_services.to_a.each do |service|
-            service_hash = parse_base_item(service)
-
-            collection.build(service_hash)
+            collection.build(parse_service(service))
           end
 
           puts "#{self.class.name}##{__method__}: Collecting services...Complete - Count [#{collection.to_a.count}]"
+        end
+
+        def parse_service(service)
+          service_hash = parse_base_item(service).merge!(
+            :container_project => lazy_find_project(service.metadata["table"][:namespace]),
+            :portal_ip         => service.spec.clusterIP,
+            :session_affinity  => service.spec.sessionAffinity,
+            :service_type      => service.spec.type,
+            # TODO: labels, tags, selector_parts, container_groups
+          )
+
+          if service_hash[:ems_ref].nil?
+            service_hash[:ems_ref] = "#{service_hash[:namespace]}_#{service_hash[:name]}"
+          end
+
+          service_hash
         end
 
         def get_component_statuses(kube)
@@ -247,6 +316,18 @@ module ManageIQ
           return if node_name.nil?
 
           @collections[:container_nodes].lazy_find(node_name)
+        end
+
+        def lazy_find_pv_claim(ns, name)
+          return if ns.nil? || name.nil?
+
+          @collections[:persistent_volume_claims].lazy_find([ns, name])
+        end
+
+        def lazy_find_build_pod(name)
+          return if name.nil?
+
+          @collections[:build_pods].lazy_find(name)
         end
       end
     end
