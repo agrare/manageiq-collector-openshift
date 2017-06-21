@@ -57,7 +57,20 @@ module ManageIQ
           puts "#{self.class.name}##{__method__}: Collecting nodes..."
 
           kube.get_nodes.to_a.each do |node|
-            node_hash = parse_base_item(node)
+            node_hash = parse_base_item(node).merge!(
+              :type           => 'ManageIQ::Providers::Kubernetes::ContainerManager::ContainerNode',
+              :identity_infra => node.spec.providerID,
+            )
+
+            node.status&.nodeInfo&.tap do |node_info|
+              node_hash.merge!(
+                :identity_machine           => node_info.machineID,
+                :identity_system            => node_info.systemUUID,
+                :container_runtime_version  => node_info.containerRuntimeVersion,
+                :kubernetes_proxy_version   => node_info.kubeProxyVersion,
+                :kubernetes_kubelet_version => node_info.kubeletVersion
+              )
+            end
 
             collection.build(node_hash)
           end
